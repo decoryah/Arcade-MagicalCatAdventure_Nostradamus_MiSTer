@@ -1,4 +1,4 @@
-# MCatAdv for MiSTer
+# Magical Cat Adventure (Wintechno) / Nostradamus (Face) for MiSTer
 
 Wintechno's **Magical Cat Adventure** (1993) and its clones **Catt**, and Face's **Nostradamus** (1993) with its
 clones, on the Face "LINDA" board (68000 + Z80 + YM2610, two NEC 038 tilemap chips and a FACE FX1037 sprite
