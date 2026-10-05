@@ -1,0 +1,10 @@
+jt10 / jt12 (YM2610, YM2612 family), GPL-3.0, Jose Tejada Gomez
+https://github.com/jotego/jt12 hdl/ + hdl/adpcm/ at dc9be7c1ff75d5b9a7f9d89da1b7fba212af1257
+Files copied from github.com/kyledlester/Nostradamus_Magical_Cat_Adventure_MiSTer rtl/vendor/jt10/ (that core ships them,
+tested on a MiSTer; its only change is the op_result / op_result_hd declarations in jt12_top.v moved above their first use).
+Not copied: jt49* (see ../jt49), jt10b*.
+
+Local changes: jt10.v has one more output, adpcmA_l (the ADPCM-A part of the mix, for the diagnostic overlay).
+
+Clocking: the other core runs jt10 at 49 MHz. jt12_div and jt12_rst clock their enables on the falling edge, a half-cycle path
+to every flip-flop they enable (10 ns there, 5.2 ns at 96 MHz), so this core runs jt10 on a 48 MHz clock of the same PLL.

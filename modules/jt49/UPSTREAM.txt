@@ -1,0 +1,2 @@
+47301ed51374d6d41db4db846b7643fecf75e417 Sun Aug 2 01:57:43 2026 -0700
+https://github.com/jotego/jt49 (GPL-3.0), files copied from hdl/

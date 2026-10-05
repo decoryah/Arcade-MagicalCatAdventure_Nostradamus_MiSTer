@@ -1,0 +1,86 @@
+<misterromdescription>
+    <rotation>vertical (ccw)</rotation>
+    <name>Nostradamus (Japan)</name>
+    <setname>nostj</setname>
+    <mameversion>0289</mameversion>
+    <year>1993</year>
+    <manufacturer>Face</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>mcatadv</rbf>
+    <region>Japan</region>
+    <platform>Face LINDA</platform>
+
+    <!--
+      Flat image for the MCatAdv core (target/mister/mcatadv_mem.sv), the same for every set:
+
+        0x000000  0x100000  68000 program
+        0x100000  0x040000  Z80 sound program
+        0x140000  0x500000  FX1037 sprite ROM, 4bpp, the first pixel of a byte in its low nibble
+        0x640000  0x180000  BG0 tile ROM
+        0x7C0000  0x280000  BG1 tile ROM
+        0xA40000  0x100000  YM2610 ADPCM-A samples
+        0xB40000  0x000010  configuration
+        0xB40010            end
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC,
+      whatever zip or folder holds them.
+
+      DIP switches (ioctl index 254): byte 0 is the high byte of MAME's DSW1 port, byte 1 the high byte of DSW2
+      (bit 0 is SW1:1 / SW2:1 ... a 1 is MAME's default setting).
+    -->
+    <switches default="FF,FF" base="16">
+        <dip bits="0,1" name="Lives" ids="5,4,2,3"/>
+        <dip bits="2,3" name="Difficulty" ids="Hardest,Hard,Easy,Normal"/>
+        <dip bits="4" name="Flip Screen" ids="On,Off"/>
+        <dip bits="5" name="Demo Sounds" ids="Off,On"/>
+        <dip bits="6,7" name="Bonus Life" ids="None,1000k 2000k,500k 1000k,800k 1500k"/>
+        <dip bits="8,9,10" name="Coin A" ids="Free Play,3C/2C,3C/1C,2C/3C,2C/1C,1C/3C,1C/2C,1C/1C"/>
+        <dip bits="11,12,13" name="Coin B" ids="4C/1C,3C/2C,3C/1C,2C/3C,2C/1C,1C/3C,1C/2C,1C/1C"/>
+        <dip bits="14" name="Unused (SW2:7)" ids="On,Off"/>
+        <dip bits="15" name="Service Mode" ids="On,Off"/>
+    </switches>
+
+    <rom index="0" zip="nostj.zip|nost.zip" md5="None">
+
+        <!-- 68000 program: the loader packs the stream little-endian (first byte low), so the ROM of the low bytes of the words comes first -->
+        <interleave output="16">
+            <part name="nos-pe-u.bin" crc="4b080149" map="10"/>
+            <part name="nos-po-j.u29" crc="7fe241de" map="01"/>
+        </interleave>
+
+        <!-- Z80 sound program -->
+        <part name="nos-ps.u9" crc="832551e9"/>
+
+        <!-- FX1037 sprite ROM: the first ROM of each pair holds the even bytes -->
+        <interleave output="16">
+            <part name="nos-se-0.u82" crc="9d99108d" map="01"/>
+            <part name="nos-so-0.u83" crc="7df0fc7e" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="nos-se-1.u84" crc="aad07607" map="01"/>
+            <part name="nos-so-1.u85" crc="83d0012c" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="nos-se-2.u86" crc="d99e6005" map="01"/>
+            <part name="nos-so-2.u87" crc="f60e8ef3" map="10"/>
+        </interleave>
+
+        <!-- BG0 tile ROM, 8x8 4bpp packed (FF beyond the ROM) -->
+        <part name="nos-b0-0.u58" crc="0214b0f2"/>
+        <part name="nos-b0-1.u59" crc="3f8b6b34"/>
+
+        <!-- BG1 tile ROM -->
+        <part name="nos-b1-0.u60" crc="ba6fd0c7"/>
+        <part name="nos-b1-1.u61" crc="dabd8009"/>
+        <part repeat="0x100000">FF</part>
+
+        <!-- YM2610 ADPCM-A samples -->
+        <part name="nossn-00.u53" crc="3bd1bcbc"/>
+
+        <!-- configuration: game (0 Magical Cat Adventure / Catt, 1 Nostradamus), tiles in BG0 and BG1 (16x16, little endian) -->
+        <part>01 00 30 00 30 00 00 00 00 00 00 00 00 00 00 00</part>
+    </rom>
+
+    <buttons names="Shot,Button 2 (test),Button 3 (test),Start,Coin,Service,Test 3" default="A,B,X,Start,Select,R,L"/>
+</misterromdescription>

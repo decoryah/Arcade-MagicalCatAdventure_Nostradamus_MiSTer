@@ -1,0 +1,44 @@
+set_global_assignment -name SYSTEMVERILOG_FILE MCatAdv.sv
+set_global_assignment -name SDC_FILE MCatAdv.sdc
+set_global_assignment -name QIP_FILE rtl/pll.qip
+
+# the machine
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_ram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_cen.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_cache.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_main.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_video.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_tmap.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_sprbuf.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_spr.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_pcmrd.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_zcache.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_sound.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_ovl.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_core.sv
+
+# fx68k 68000 (GPL-3, Jorge Cwik); microrom.mem / nanorom.mem are read from the project directory
+set_global_assignment -name SYSTEMVERILOG_FILE modules/cpu-fx68k/fx68kAlu.sv
+set_global_assignment -name SYSTEMVERILOG_FILE modules/cpu-fx68k/uaddrPla.sv
+set_global_assignment -name SYSTEMVERILOG_FILE modules/cpu-fx68k/fx68k.sv
+# tv80 Z80 (MIT, Guy Hutchison)
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80_alu.v
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80_core.v
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80_mcode.v
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80_reg.v
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80s_cen.v
+
+# MiSTer platform layer
+set_global_assignment -name SYSTEMVERILOG_FILE target/mister/mcatadv_mem.sv
+set_global_assignment -name SYSTEMVERILOG_FILE target/mister/sdram_ctrl.sv
+
+# jt10 (jt12), YM2610 (GPL-3, Jose Tejada; modules/jt10/UPSTREAM.txt)
+set_global_assignment -name QIP_FILE modules/jt10/jt10.qip
+
+# jt49, the YM2610's SSG (GPL-3, Jose Tejada)
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49.v
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49_cen.v
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49_div.v
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49_eg.v
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49_exp.v
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49_noise.v

@@ -1,0 +1,91 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Magical Cat Adventure (Japan)</name>
+    <setname>mcatadvj</setname>
+    <mameversion>0289</mameversion>
+    <year>1993</year>
+    <manufacturer>Wintechno</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>mcatadv</rbf>
+    <region>Japan</region>
+    <platform>Face LINDA</platform>
+
+    <!--
+      Flat image for the MCatAdv core (target/mister/mcatadv_mem.sv), the same for every set:
+
+        0x000000  0x100000  68000 program
+        0x100000  0x040000  Z80 sound program
+        0x140000  0x500000  FX1037 sprite ROM, 4bpp, the first pixel of a byte in its low nibble
+        0x640000  0x180000  BG0 tile ROM
+        0x7C0000  0x280000  BG1 tile ROM
+        0xA40000  0x100000  YM2610 ADPCM-A samples
+        0xB40000  0x000010  configuration
+        0xB40010            end
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC,
+      whatever zip or folder holds them.
+
+      DIP switches (ioctl index 254): byte 0 is the high byte of MAME's DSW1 port, byte 1 the high byte of DSW2
+      (bit 0 is SW1:1 / SW2:1 ... a 1 is MAME's default setting).
+    -->
+    <switches default="FF,FF" base="16">
+        <dip bits="0" name="Demo Sounds" ids="Off,On"/>
+        <dip bits="1" name="Flip Screen" ids="On,Off"/>
+        <dip bits="2" name="Service Mode" ids="On,Off"/>
+        <dip bits="3" name="Coin Mode" ids="Mode 2,Mode 1"/>
+        <dip bits="4,5" name="Coin A" ids="4C/1C or 2C/3C,3C/1C or 2C/1C,1C/4C or 1C/2C,1C/1C"/>
+        <dip bits="6,7" name="Coin B" ids="4C/1C or 2C/3C,3C/1C or 2C/1C,1C/4C or 1C/2C,1C/1C"/>
+        <dip bits="8,9" name="Difficulty" ids="Hardest,Hard,Easy,Normal"/>
+        <dip bits="10,11" name="Lives" ids="5,2,4,3"/>
+        <dip bits="12,13" name="Energy" ids="8,5,4,3"/>
+        <dip bits="14,15" name="Cabinet" ids="Upright 2P (same),Upright 1P,Cocktail (unused),Upright 2P"/>
+    </switches>
+
+    <rom index="0" zip="mcatadvj.zip|mcatadv.zip" md5="None">
+
+        <!-- 68000 program: the loader packs the stream little-endian (first byte low), so the ROM of the low bytes of the words comes first -->
+        <interleave output="16">
+            <part name="u30.bin" crc="05762f42" map="10"/>
+            <part name="u29.bin" crc="4c59d648" map="01"/>
+        </interleave>
+
+        <!-- Z80 sound program (the board has half the space: FF) -->
+        <part name="u9.bin" crc="fda05171"/>
+        <part repeat="0x20000">FF</part>
+
+        <!-- FX1037 sprite ROM: the first ROM of each pair holds the even bytes -->
+        <interleave output="16">
+            <part name="mca-u82.bin" crc="5f01d746" map="01"/>
+            <part name="mca-u83.bin" crc="4e1be5a6" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="mca-u84.bin" crc="df202790" map="01"/>
+            <part name="mca-u85.bin" crc="a85771d2" map="10"/>
+        </interleave>
+        <!-- the board has no ROMs here: MAME fills the sprite space with FF -->
+        <part repeat="0x100000">FF</part>
+        <interleave output="16">
+            <part name="u86.bin" crc="2d3725ed" map="01"/>
+            <part name="u87.bin" crc="4ddefe08" map="10"/>
+        </interleave>
+
+        <!-- BG0 tile ROM, 8x8 4bpp packed (FF beyond the ROM) -->
+        <part name="mca-u58.bin" crc="3a8186e2"/>
+        <part repeat="0x100000">FF</part>
+
+        <!-- BG1 tile ROM -->
+        <part name="mca-u60.bin" crc="c8942614"/>
+        <part name="mca-u61.bin" crc="51af66c9"/>
+        <part name="u100.bin" crc="e2c311da"/>
+
+        <!-- YM2610 ADPCM-A samples (the 512 KB ROM twice, as the chip's address wraps) -->
+        <part name="mca-u53.bin" crc="64c76e05"/>
+        <part name="mca-u53.bin" crc="64c76e05"/>
+
+        <!-- configuration: game (0 Magical Cat Adventure / Catt, 1 Nostradamus), tiles in BG0 and BG1 (16x16, little endian) -->
+        <part>00 00 10 00 50 00 00 00 00 00 00 00 00 00 00 00</part>
+    </rom>
+
+    <buttons names="Fire,Jump,Button 3 (test),Start,Coin,Service" default="A,B,X,Start,Select,R"/>
+</misterromdescription>
