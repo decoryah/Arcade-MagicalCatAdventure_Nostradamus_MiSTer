@@ -6,7 +6,7 @@
 
   python tools/package.py [YYYYMMDD[a-z]]   (default: the newest RBF in releases/; a letter after the date numbers a second build of the day)
 
-Writes dist/MCatAdv_MiSTer_<YYYYMMDD>.zip (dist/ is not in the repository: attach the zip, with dist/RELEASE_NOTES_<YYYYMMDD>.md as the
+Writes dist/MagicalCatAdventure_Nostradamus_MiSTer_<YYYYMMDD>.zip (dist/ is not in the repository: attach the zip, with dist/RELEASE_NOTES_<YYYYMMDD>.md as the
 release's description, to the GitHub release).  Unzip it over the root of the SD card.  No ROMs are in it: the MAME 0.289 romsets
 (mcatadv.zip, nost.zip, and the clones' zips with a split set) go to /media/fat/games/mame/.
 """
@@ -35,7 +35,7 @@ def main(argv):
     mras = sorted(glob.glob(os.path.join(mra_root, '**', '*.mra'), recursive=True),
                   key=lambda p: (os.path.dirname(p).lower(), os.path.basename(p).lower()))
     os.makedirs(DIST, exist_ok=True)
-    out = os.path.join(DIST, 'MCatAdv_MiSTer_%s.zip' % date)
+    out = os.path.join(DIST, 'MagicalCatAdventure_Nostradamus_MiSTer_%s.zip' % date)
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         for full in mras:
             z.write(full, '_Arcade/' + os.path.relpath(full, mra_root).replace(os.sep, '/'))
