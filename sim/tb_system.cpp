@@ -76,14 +76,14 @@ int main(int argc, char** argv) {
     t->clk = 0; t->clk_snd = 0; t->clk_vid = 0;
     t->init = 1; t->rst = 1; t->vid_rst = 1;
 
-    // base tick = 1/1344 us: clk (96 MHz) toggles every 7 ticks, clk_vid (28 MHz) every 24
+    // base tick = 1/1344 us: clk (96 MHz) toggles every 7 ticks, clk_vid (56 MHz) every 12
     uint64_t tick = 0;
     auto step = [&]() {
         tick++;
         bool ch = false;
         if (tick % 7 == 0)  { t->clk = !t->clk; ch = true; }
         if (tick % 14 == 7) { t->clk_snd = !t->clk_snd; ch = true; }                  // 48 MHz, rising with every second clk rise
-        if (tick % 24 == 0) { t->clk_vid = !t->clk_vid; ch = true; }
+        if (tick % 12 == 0) { t->clk_vid = !t->clk_vid; ch = true; }
         if (ch) t->eval();
     };
     auto run_sys_cycles = [&](int n) { for (int i = 0; i < n; ) { bool before = t->clk; step(); if (t->clk && !before) i++; } };

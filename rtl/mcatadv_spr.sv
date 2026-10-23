@@ -166,8 +166,11 @@ module mcatadv_spr #(
                 overrun <= 1'b0;
                 busy <= 1'b1;
                 bnk  <= bank;
-                ygy  <= $signed({11'b0, line}) + $signed({3'b0, vid_y}) - 19'sd497;      // line + (B00002 - 1F1)
-                gx   <= $signed({3'b0, vid_x}) - 19'sd388;                               // B00000 - 184
+                // line + (B00002 - 1F1), B00000 - 184; with Flip Screen the game sets bit 15 of both registers and gives the chip
+                // other values (0x81bb / 0x80f0: sprite RAM is the same as unflipped); the origin is then the unflipped one
+                // (0x184 / 0x1f1, which the games always use) and the finished picture is mirrored by the raster
+                ygy  <= $signed({11'b0, line}) + (vid_y[15] ? 19'sd0 : $signed({3'b0, vid_y}) - 19'sd497);
+                gx   <= vid_x[15] ? 19'sd0 : $signed({3'b0, vid_x}) - 19'sd388;
                 clr_x <= 9'd0;
                 f_wr <= 5'd0; f_rd <= 5'd0; d_busy <= 1'b0; d_en <= 1'b0;
                 p_e <= 1'b0; p_o <= 1'b0;

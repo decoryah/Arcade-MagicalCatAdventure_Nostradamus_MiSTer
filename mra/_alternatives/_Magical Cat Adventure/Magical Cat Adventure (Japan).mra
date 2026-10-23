@@ -28,6 +28,10 @@
 
       DIP switches (ioctl index 254): byte 0 is the high byte of MAME's DSW1 port, byte 1 the high byte of DSW2
       (bit 0 is SW1:1 / SW2:1 ... a 1 is MAME's default setting).
+
+      Fast loading: address="0x32000000" makes a recent Main_MiSTer copy the assembled image into the DDR3 in one go; the
+      core then reads it back from there (about a second) instead of waiting for it to be streamed through the HPS port.
+      An older Main_MiSTer ignores the attribute and streams the image as before.
     -->
     <switches default="FF,FF" base="16">
         <dip bits="0" name="Demo Sounds" ids="Off,On"/>
@@ -42,7 +46,7 @@
         <dip bits="14,15" name="Cabinet" ids="Upright 2P (same),Upright 1P,Cocktail (unused),Upright 2P"/>
     </switches>
 
-    <rom index="0" zip="mcatadvj.zip|mcatadv.zip" md5="None">
+    <rom index="0" zip="mcatadvj.zip|mcatadv.zip" md5="None" address="0x32000000">
 
         <!-- 68000 program: the loader packs the stream little-endian (first byte low), so the ROM of the low bytes of the words comes first -->
         <interleave output="16">
@@ -87,5 +91,5 @@
         <part>00 00 10 00 50 00 00 00 00 00 00 00 00 00 00 00</part>
     </rom>
 
-    <buttons names="Fire,Jump,Button 3 (test),Start,Coin,Service" default="A,B,X,Start,Select,R"/>
+    <buttons names="Fire,Jump,Start,Coin" default="A,B,Start,Select"/>
 </misterromdescription>

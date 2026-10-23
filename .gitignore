@@ -35,3 +35,6 @@ artifacts/
 # Python
 __pycache__/
 *.pyc
+
+# release zips and notes (attached to the GitHub release, not committed)
+dist/

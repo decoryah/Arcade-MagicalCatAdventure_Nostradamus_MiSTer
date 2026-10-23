@@ -34,7 +34,7 @@ set_multicycle_path -setup 3 -from [get_registers {*|sdram_ctrl:*|last[*]}] -to 
 set_multicycle_path -hold  2 -from [get_registers {*|sdram_ctrl:*|last[*]}] -to [get_registers {*|sdram_ctrl:*|*}]
 
 # ==============================================================================
-# The machine clock (96 MHz) and the raster clock (28 MHz) are unrelated; what crosses between them
+# The machine clock (96 MHz) and the raster clock (56 MHz) are unrelated; what crosses between them
 # is the raster's event toggles (three-flop synchronisers), the line buffers and the palette RAM
 # (separate write and read clocks), and the video RAM's register copies that change a line at a time.
 # ==============================================================================

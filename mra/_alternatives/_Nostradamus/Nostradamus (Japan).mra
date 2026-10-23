@@ -28,6 +28,10 @@
 
       DIP switches (ioctl index 254): byte 0 is the high byte of MAME's DSW1 port, byte 1 the high byte of DSW2
       (bit 0 is SW1:1 / SW2:1 ... a 1 is MAME's default setting).
+
+      Fast loading: address="0x32000000" makes a recent Main_MiSTer copy the assembled image into the DDR3 in one go; the
+      core then reads it back from there (about a second) instead of waiting for it to be streamed through the HPS port.
+      An older Main_MiSTer ignores the attribute and streams the image as before.
     -->
     <switches default="FF,FF" base="16">
         <dip bits="0,1" name="Lives" ids="5,4,2,3"/>
@@ -35,13 +39,13 @@
         <dip bits="4" name="Flip Screen" ids="On,Off"/>
         <dip bits="5" name="Demo Sounds" ids="Off,On"/>
         <dip bits="6,7" name="Bonus Life" ids="None,1000k 2000k,500k 1000k,800k 1500k"/>
-        <dip bits="8,9,10" name="Coin A" ids="Free Play,3C/2C,3C/1C,2C/3C,2C/1C,1C/3C,1C/2C,1C/1C"/>
-        <dip bits="11,12,13" name="Coin B" ids="4C/1C,3C/2C,3C/1C,2C/3C,2C/1C,1C/3C,1C/2C,1C/1C"/>
+        <dip bits="8,10" name="Coin A" ids="Free Play,3C/2C,3C/1C,2C/3C,2C/1C,1C/3C,1C/2C,1C/1C"/>
+        <dip bits="11,13" name="Coin B" ids="4C/1C,3C/2C,3C/1C,2C/3C,2C/1C,1C/3C,1C/2C,1C/1C"/>
         <dip bits="14" name="Unused (SW2:7)" ids="On,Off"/>
         <dip bits="15" name="Service Mode" ids="On,Off"/>
     </switches>
 
-    <rom index="0" zip="nostj.zip|nost.zip" md5="None">
+    <rom index="0" zip="nostj.zip|nost.zip" md5="None" address="0x32000000">
 
         <!-- 68000 program: the loader packs the stream little-endian (first byte low), so the ROM of the low bytes of the words comes first -->
         <interleave output="16">
@@ -82,5 +86,5 @@
         <part>01 00 30 00 30 00 00 00 00 00 00 00 00 00 00 00</part>
     </rom>
 
-    <buttons names="Shot,Button 2 (test),Button 3 (test),Start,Coin,Service,Test 3" default="A,B,X,Start,Select,R,L"/>
+    <buttons names="Shot,Start,Coin" default="A,Start,Select"/>
 </misterromdescription>

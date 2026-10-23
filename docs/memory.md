@@ -7,7 +7,7 @@
 | `clk_sys` 96 MHz | PLL `pll_0002` (960 MHz VCO) | everything but the raster and the YM2610 |
 | `clk_sdram` 96 MHz, -5078 ps | same PLL | the SDRAM chip's clock pin |
 | `clk_snd` 48 MHz | same PLL, third output, in phase with `clk_sys` | the YM2610 (jt10) and the sound board's mix; its enable is ÷6 = 8 MHz |
-| `clk_vid` 28 MHz | PLL `pll_vid` (700 MHz VCO / 25) | the raster; pixel clock = `clk_vid` / 4 = 7 MHz |
+| `clk_vid` 56 MHz | PLL `pll_vid` (a second PLL; 50 MHz x 28 / 25) | the raster and the video output (`CLK_VIDEO`), CRT Adjust, and the DDR3 port's clock; pixel clock = `clk_vid` / 8 = 7 MHz, the board's 28 MHz / 4 |
 
 The board has a 16 MHz and a 28 MHz crystal (MAME: `XTAL(16'000'000)`; the Nostradamus PCB photo lists
 OSC 28.000 MHz and OSC 16.000 MHz). From `clk_sys`, as clock enables (`rtl/mcatadv_cen.sv`):
@@ -60,6 +60,29 @@ their backdoor preload / readback and compare the RTL loader's result with it.
   (`rtl/mcatadv_pcmrd.sv`); the byte is read from SDRAM whenever the address changes. The random-access port is served before the
   burst port's next chunk, so the wait is at most about 100 clocks of the 144 the slot gives.
 
+## The DDR3
+
+The framework's DDR3 port (`DDRAM_*`) is on the raster clock (`CLK_VIDEO`, 56 MHz). Two things use it, never at once:
+
+* `screen_rotate` (the framework's), when the picture is turned a quarter turn (Nostradamus' default): it writes the rotated
+  frame buffer at byte 0x24000000, one write (a 32-bit half of a beat, by byte enable) for every pixel, and never looks at `DDRAM_BUSY` (it was written for a
+  port nobody else uses).
+* Fast loading (`target/mister/mcatadv_fastload.sv`): the MRA's `address="0x32000000"` has Main_MiSTer copy the assembled image
+  there (byte 0 at 0x32000000, little-endian 64-bit words: DDRAM_ADDR 0x06400000 and up); the core reads it back in 256-byte
+  blocks (32 beats) and feeds the bytes to the ROM loader. While a fast load runs (`fast_dl` in `MCatAdv.sv`: from the start
+  of the empty download to the loader's last word) `screen_rotate`'s pixel enable is held off, so it writes nothing, and the
+  block reader drives the port for the length of a burst (`fl_own`). Outside a fast load `fl_own` is 0 and the port is
+  `screen_rotate`'s alone, as before.
+
+The loader takes a byte pair into a 64-entry word FIFO and writes the SDRAM a word at a time (about 7 clocks of 96 MHz a word
+when nothing else is using the chip), so the 11.8 MB image takes 0.43 s to replay (simulated; `sim/emu/run_emu.sh`); a streamed
+download is limited by the HPS port and takes several seconds.
+
+The two clock domains meet in one place: a block is asked for by a level `req` (with the block number held stable) and answered by
+a level `ack` after the 32 beats are in a 32 x 64-bit dual-clock RAM, each through two flip-flops (four-phase handshake). A download
+that starts during a fast load (another game chosen) makes the feeder drop `req` and wait until the reader, which cannot cancel a
+burst, is idle before it takes a new load.
+
 ## The line pipeline
 
 One display line is drawn while the one before it is shown (double-buffered line buffers):
@@ -80,7 +103,7 @@ tile rows, then the sprite rows). A line that is not finished when the next star
   times a line would starve the first lines of the frame (and leave the last lines of the previous frame's sprites in the
   line buffer: the dropped lines are not redrawn). The loader checks the first 128 bytes of the sprite ROM and the scanner
   skips entries of tile 0 when they are zero (`cfg_spr0_blank`); the result is the same as MAME's.
-* Display (28 MHz): the three line buffers are read, mixed (MAME's `screen_update` priority rules) and looked
+* Display (56 MHz, a pixel every eight clocks): the three line buffers are read, mixed (MAME's `screen_update` priority rules) and looked
   up in the palette RAM, which the 68000 writes on the other clock, so palette changes show in the
   middle of a line as on the board.
 

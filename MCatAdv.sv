@@ -68,17 +68,45 @@ wire        no_rotate  = direct_video | (orient == 2'd1);
 wire        flip = 1'b0;
 wire        video_rotated;
 
+// Aspect ratio and Scale. The framework's video_freak (after arcade_video, below) turns the two into VIDEO_ARX / VIDEO_ARY:
+// with Scale Normal they pass through as they are; the integer modes replace them with the exact size in pixels (bit 12 set)
+// that the HDMI scaler should give the picture. The menu's order is the user's; video_freak's SCALE input counts
+// 0 Normal, 1 V-Integer, 2 Narrower HV-Integer, 3 HV-Integer+ (wider), 4 HV-Integer.
+// With the picture turned through the DDR3 frame buffer (Nostradamus' default, or either Rotate) the scaler shows that
+// buffer, which video_freak does not know about, so Scale stays Normal then (and the menu entry is hidden); with
+// Orientation Horizontal, and on Magical Cat Adventure, the picture is scaled like any other game's.
 wire  [1:0] ar = status[122:121];
-assign VIDEO_ARX = (!ar) ? (no_rotate ? 13'd4 : 13'd3) : (ar - 1'd1);
-assign VIDEO_ARY = (!ar) ? (no_rotate ? 13'd3 : 13'd4) : 13'd0;
+reg   [2:0] scale_sel;
+always @* begin
+	case (status[34:32])
+		3'd1:    scale_sel = 3'd1;   // V-Integer
+		3'd2:    scale_sel = 3'd4;   // HV-Integer
+		3'd3:    scale_sel = 3'd2;   // Narrower HV-Integer
+		3'd4:    scale_sel = 3'd3;   // HV-Integer+
+		default: scale_sel = 3'd0;   // Normal
+	endcase
+	if (!no_rotate) scale_sel = 3'd0;
+end
+// Full Screen is ARX = ARY = 0 ("fill"), which has no proportions for the integer rule to size the width from: it sizes the
+// height from the width instead and asks for more rows than the screen has. With an integer Scale the screen's own
+// proportions stand in for it, so the picture is a whole-number size in the screen's aspect
+wire        fs_int = (ar == 2'd1) && (scale_sel != 3'd0) && (HDMI_WIDTH != 12'd0) && (HDMI_HEIGHT != 12'd0);
+wire [11:0] arx    = fs_int ? HDMI_WIDTH  : (!ar) ? (no_rotate ? 12'd4 : 12'd3) : (ar - 1'd1);
+wire [11:0] ary    = fs_int ? HDMI_HEIGHT : (!ar) ? (no_rotate ? 12'd3 : 12'd4) : 12'd0;
 
 `include "build_id.v"
 localparam CONF_STR = {
 	"A.MCATADV;;",
 	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"H1O[34:32],Scale,Normal,V-Integer,HV-Integer,Narrower HV-Integer,HV-Integer+;",
 	"O[8:7],Orientation,Game default,Horizontal,Rotate CCW,Rotate CW;",
 	"O[5:3],Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"P1,CRT Adjust;",
+	"P1O[40],CRT Adjust,Off,On;",
+	"H2P1O[45:41],CRT H-Size,0,+1,+2,+3,+4,+5,+6,+7,+8,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
+	"H2P1O[52:46],CRT H-Position,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,+11,+12,+13,+14,+15,+16,+17,+18,+19,+20,+21,+22,+23,+24,+25,+26,+27,+28,+29,+30,+31,+32,+33,+34,+35,+36,+37,+38,+39,+40,-48,-47,-46,-45,-44,-43,-42,-41,-40,-39,-38,-37,-36,-35,-34,-33,-32,-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
+	"H2P1O[57:53],CRT V-Shift,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
 	"-;",
 	"DIP;",
 	"-;",
@@ -86,8 +114,8 @@ localparam CONF_STR = {
 	"O[21],Diagnostic overlay,Off,On;",
 	"-;",
 	"R0,Reset;",
-	"J1,Fire,Jump,Button 3,Start,Coin,Service,Test 3;",
-	"jn,A,B,X,Start,Select,R,L;",
+	"J1,Fire,Jump,Start,Coin;",
+	"jn,A,B,Start,Select;",
 	"V,v",`BUILD_DATE
 };
 
@@ -96,7 +124,7 @@ localparam CONF_STR = {
 wire clk_sys;           // 96 MHz: the machine
 wire clk_sdram;         // 96 MHz, shifted: the SDRAM chip's clock pin
 wire clk_snd;           // 48 MHz: the YM2610 (jt10's enables are made on the falling edge: a half cycle of 96 MHz is too short)
-wire clk_vid;           // 28 MHz: the raster (pixel clock = this / 4)
+wire clk_vid;           // 56 MHz: the raster (pixel clock = this / 8 = 7 MHz) and the video output, and the DDR3 port's clock
 wire pll_locked;
 
 wire pll_locked_sys, pll_locked_vid;
@@ -138,7 +166,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({15'd0, direct_video}),
+	.status_menumask({13'd0, ~status[40], ~no_rotate, direct_video}),   // H1: Scale (hidden while the picture is turned), H2: the CRT Adjust values (hidden while it is Off)
 	.forced_scandoubler(forced_scandoubler),
 	.direct_video(direct_video),
 	.video_rotated(video_rotated),
@@ -176,22 +204,25 @@ always @(posedge clk_sys) begin
 	end
 end
 
-// joystick bits: 0 right, 1 left, 2 down, 3 up, 4-6 buttons 1-3, 7 start, 8 coin, 9 service, 10 test 3
+// joystick bits: 0 right, 1 left, 2 down, 3 up, then the buttons in the order of the MRA's <buttons> (tools/make_mra.py), which
+// is the game's own: Magical Cat Adventure 4 Fire, 5 Jump, 6 Start, 7 Coin; Nostradamus (one button) 4 Shot, 5 Start, 6 Coin.
+// The boards' other inputs, SERVICE1 and the test mode's extra buttons (MAME: "button 2 / 3 in test mode", "test 3"), are not on
+// the gamepad: the test mode is entered with the OSD's Service Mode switch or F2, and its screens are stepped with the
+// keyboard's 9.
 wire j1_r = joystick_0[0], j1_l = joystick_0[1], j1_d = joystick_0[2], j1_u = joystick_0[3];
-wire j1_b1 = joystick_0[4], j1_b2 = joystick_0[5], j1_b3 = joystick_0[6];
-wire j1_start = joystick_0[7] | key_start1, j1_coin = joystick_0[8] | key_coin1;
-wire j1_t3 = joystick_0[10];
-wire svc_btn = key_service | joystick_0[9] | joystick_1[9];     // SERVICE1: steps through the test mode's screens
+wire j1_b1 = joystick_0[4], j1_b2 = ~nost & joystick_0[5];
+wire j1_start = (nost ? joystick_0[5] : joystick_0[6]) | key_start1, j1_coin = (nost ? joystick_0[6] : joystick_0[7]) | key_coin1;
+wire svc_btn = key_service;                                      // SERVICE1: steps through the test mode's screens
 wire j2_r = joystick_1[0], j2_l = joystick_1[1], j2_d = joystick_1[2], j2_u = joystick_1[3];
-wire j2_b1 = joystick_1[4], j2_b2 = joystick_1[5];
-wire j2_start = joystick_1[7] | key_start2, j2_coin = joystick_1[8] | key_coin2;
+wire j2_b1 = joystick_1[4], j2_b2 = ~nost & joystick_1[5];
+wire j2_start = (nost ? joystick_1[5] : joystick_1[6]) | key_start2, j2_coin = (nost ? joystick_1[6] : joystick_1[7]) | key_coin2;
 
 // the board's inputs, active low (MAME's INPUT_PORTS mcatadv, nost):
-//   P1: bit 0 up, 1 down, 2 left, 3 right, 4 button 1 (fire), 5 button 2 (jump), 6 button 3, 7 start 1, 8 coin 1,
-//       Nostradamus also 9 "test 3" (buttons 2, 3 and test 3 are used in its test mode only)
+//   P1: bit 0 up, 1 down, 2 left, 3 right, 4 button 1 (fire), 5 button 2 (jump), 6 button 3 (test mode only, not wired),
+//       7 start 1, 8 coin 1, Nostradamus also 9 "test 3" (test mode only, not wired)
 //       (Nostradamus: bit 11 is active high and must read 0 or the start-up freezes)
 //   P2: the same, bit 7 start 2, 8 coin 2, 9 service 1
-wire [15:0] p1_base = ~{6'd0, j1_t3, j1_coin, j1_start, j1_b3, j1_b2, j1_b1, j1_r, j1_l, j1_d, j1_u};
+wire [15:0] p1_base = ~{6'd0, 1'b0, j1_coin, j1_start, 1'b0, j1_b2, j1_b1, j1_r, j1_l, j1_d, j1_u};
 wire [15:0] p1_in = nost ? (p1_base & ~16'h0800) : p1_base;
 wire [15:0] p2_in = ~{6'd0, svc_btn, j2_coin, j2_start, 1'b0, j2_b2, j2_b1, j2_r, j2_l, j2_d, j2_u};
 
@@ -211,8 +242,26 @@ wire [15:0] dsw2_in = {sw[1] & ~{svc_tog & nost, 7'd0}, dsw_lo};
 // the ROM image: MRA index 0
 wire        rom_dl = ioctl_download && (ioctl_index[7:0] == 8'd0);
 wire        dl_we  = rom_dl && ioctl_wr;
+reg         rom_dl_d;
+always @(posedge clk_sys) rom_dl_d <= rom_dl;
+wire        dl_start = rom_dl && !rom_dl_d;
+wire        dl_done  = !rom_dl && rom_dl_d;
 
+// Fast load: with address= on the MRA's index-0 <rom>, Main_MiSTer copies the whole assembled image into the DDR3 in one
+// go and then ends a download that has no data bytes, only a start address: the image's length (ioctl_addr, which is 0 at
+// the start of an ordinary download). The machine stays in reset from that start until mcatadv_fastload has read the image
+// back and pushed it through the loader (fl_done). An older Main_MiSTer ignores the attribute and streams the bytes as
+// before; nothing here touches that path.
 wire        mem_init = ~pll_locked | RESET;
+reg         fast_dl = 1'b0;
+reg  [24:0] fast_len;
+wire        fl_done;
+always @(posedge clk_sys) begin
+	if (dl_start) begin fast_dl <= (ioctl_addr != 27'd0); fast_len <= ioctl_addr[24:0]; end
+	else if (fl_done || mem_init) fast_dl <= 1'b0;
+end
+wire        fl_go = fast_dl && dl_done;
+
 wire        mem_ready;
 
 wire        p_req, t0_req, t1_req, s_req, pcm_req;
@@ -234,10 +283,16 @@ wire        dl_busy;
 wire [15:0] cfg_bg0, cfg_bg1;
 wire        cfg_spr0_blank;
 
+// the loader's bytes: the HPS's stream, or a fast load's replay of the image from the DDR3 (never both)
+wire        fl_we;
+wire [24:0] fl_a;
+wire  [7:0] fl_d;
+
 mcatadv_mem u_mem
 (
 	.clk(clk_sys), .clk_sdram(clk_sdram), .init(mem_init), .rd_late(status[20]), .ready(mem_ready),
-	.dl_start(1'b0), .dl_we(dl_we), .dl_addr(ioctl_addr[24:0]), .dl_data(ioctl_dout), .dl_wait(ioctl_wait), .dl_busy(dl_busy),
+	.dl_start(1'b0), .dl_we(dl_we | fl_we), .dl_addr(fl_we ? fl_a : ioctl_addr[24:0]), .dl_data(fl_we ? fl_d : ioctl_dout),
+	.dl_wait(ioctl_wait), .dl_busy(dl_busy),
 	.cfg_game(nost), .cfg_bg0(cfg_bg0), .cfg_bg1(cfg_bg1), .cfg_spr0_blank(cfg_spr0_blank),
 	.p_req(p_req), .p_addr(p_addr), .p_wr(p_wr), .p_idx(p_idx), .p_data(p_data), .p_done(p_done),
 	.z_req(z_req), .z_addr(z_addr), .z_wr(z_wr), .z_idx(z_idx), .z_data(z_data), .z_done(z_done),
@@ -256,11 +311,11 @@ wire        reset_sw = RESET | status[0] | buttons[1];
 // the machine is held while a ROM loads and until the memory is up; registered, it fans out to the whole core
 reg         mc_rst = 1'b1, vid_rst = 1'b1;
 always @(posedge clk_sys) begin
-	mc_rst  <= reset_sw | rom_dl | dl_busy | ~mem_ready | ~pll_locked;
-	vid_rst <= rom_dl | dl_busy | ~mem_ready | ~pll_locked;
+	mc_rst  <= reset_sw | rom_dl | fast_dl | dl_busy | ~mem_ready | ~pll_locked;
+	vid_rst <= rom_dl | fast_dl | dl_busy | ~mem_ready | ~pll_locked;
 end
 
-wire        ce_pix, hblank, vblank, hsync, vsync;
+wire        ce_pix, hblank, vblank, hsync, vsync, vblank_nl;
 wire [23:0] rgb;
 wire signed [15:0] snd_l, snd_r;
 wire        snd_valid;
@@ -272,7 +327,7 @@ wire        trc_stb;
 mcatadv_core u_core
 (
 	.clk(clk_sys), .clk_snd(clk_snd), .clk_vid(clk_vid), .rst(mc_rst), .vid_rst(vid_rst), .wdog_limit(32'd288_000_000),
-	.cache_inval(rom_dl | mem_init), .cfg_game(nost), .cfg_spr0_blank(cfg_spr0_blank), .cfg_bg0(cfg_bg0), .cfg_bg1(cfg_bg1),
+	.cache_inval(rom_dl | fast_dl | mem_init), .cfg_game(nost), .cfg_spr0_blank(cfg_spr0_blank), .cfg_bg0(cfg_bg0), .cfg_bg1(cfg_bg1),
 	.p_req(p_req), .p_addr(p_addr), .p_wr(p_wr), .p_idx(p_idx), .p_data(p_data), .p_done(p_done),
 	.z_req(z_req), .z_addr(z_addr), .z_wr(z_wr), .z_idx(z_idx), .z_data(z_data), .z_done(z_done),
 	.t0_req(t0_req), .t0_addr(t0_addr), .t0_wr(t0_wr), .t0_idx(t0_idx), .t0_data(t0_data), .t0_done(t0_done),
@@ -280,7 +335,7 @@ mcatadv_core u_core
 	.s_req(s_req), .s_addr(s_addr), .s_len(s_len), .s_wr(s_wr), .s_idx(s_idx), .s_data(s_data), .s_done(s_done),
 	.pcm_req(pcm_req), .pcm_addr(pcm_addr), .pcm_ack(pcm_ack), .pcm_q(pcm_q),
 	.p1_in(p1_in), .p2_in(p2_in), .dsw1_in(dsw1_in), .dsw2_in(dsw2_in),
-	.ce_pix(ce_pix), .hblank(hblank), .vblank(vblank), .hsync(hsync), .vsync(vsync), .rgb(rgb),
+	.ce_pix(ce_pix), .hblank(hblank), .vblank(vblank), .hsync(hsync), .vsync(vsync), .vblank_nl(vblank_nl), .rgb(rgb),
 	.snd_l(snd_l), .snd_r(snd_r), .snd_valid(snd_valid),
 	.dbg_ovr_t0(dbg_ovr_t0), .dbg_ovr_t1(dbg_ovr_t1), .dbg_ovr_s(dbg_ovr_s),
 	.dbg_irq(dbg_irq), .dbg_halted(dbg_halted), .dbg_wdog(dbg_wdog), .dbg_z80(dbg_z80), .dbg_snd(dbg_snd), .dbg_addr(dbg_addr),
@@ -330,7 +385,7 @@ always @* begin
 	ovl_status[7:0]   = ovl_frames;
 	ovl_status[8]     = pll_locked;
 	ovl_status[9]     = mem_ready;
-	ovl_status[10]    = rom_dl;
+	ovl_status[10]    = rom_dl | fast_dl;
 	ovl_status[11]    = mc_rst;
 	ovl_status[12]    = vid_rst;
 	ovl_status[13]    = ovl_bus_l;
@@ -361,29 +416,131 @@ mcatadv_ovl u_ovl
 
 ///////////////////////   VIDEO   ///////////////////////
 
-// the scaler's picture, rotated a quarter turn into the DDR3 framebuffer when asked (sys/arcade_video.v)
-screen_rotate screen_rotate (.*);
+// CRT Adjust: the size and the place of the picture on a 15 kHz analog output (rtl/mcatadv_crt.sv, rmonic79's module).
+// Off, or with the scandoubler in use (31 kHz), the picture passes through unchanged. The horizontal blank the
+// scandoubler (Scandoubler Fx, MiSTer.ini's forced_scandoubler) gets is the horizontal window alone, toggling on every
+// line, with the vertical blank on VBlank: it takes its line timing from the horizontal blank's edges.
+wire        crt_sd = (|status[5:3]) | forced_scandoubler;
+wire        crt_ce, crt_hb, crt_vb, crt_hs, crt_vs;
+wire [23:0] crt_rgb;
+mcatadv_crt u_crt
+(
+	.clk(clk_vid), .ce_pix(ce_pix), .enable(status[40] & ~crt_sd),
+	.osd_hsize(status[45:41]), .osd_hpos(status[52:46]), .osd_vshift(status[57:53]),
+	.rgb_i(ovl_rgb), .hblank_i(hblank), .vblank_i(vblank), .vblank_nl_i(vblank_nl), .hsync_i(hsync), .vsync_i(vsync),
+	.ce_o(crt_ce), .rgb_o(crt_rgb), .hblank_o(crt_hb), .vblank_o(crt_vb), .hsync_o(crt_hs), .vsync_o(crt_vs)
+);
 
+wire vga_de_av;
 arcade_video #(.WIDTH(320), .DW(24), .GAMMA(1)) arcade_video
 (
 	.clk_video(clk_vid),
-	.ce_pix(ce_pix),
-	.RGB_in(ovl_rgb),
-	.HBlank(hblank),
-	.VBlank(vblank),
-	.HSync(hsync),
-	.VSync(vsync),
+	.ce_pix(crt_ce),
+	.RGB_in(crt_rgb),
+	.HBlank(crt_hb),
+	.VBlank(crt_vb),
+	.HSync(crt_hs),
+	.VSync(crt_vs),
 
 	.CLK_VIDEO(CLK_VIDEO),
 	.CE_PIXEL(CE_PIXEL),
 	.VGA_R(VGA_R), .VGA_G(VGA_G), .VGA_B(VGA_B),
-	.VGA_HS(VGA_HS), .VGA_VS(VGA_VS), .VGA_DE(VGA_DE),
+	.VGA_HS(VGA_HS), .VGA_VS(VGA_VS), .VGA_DE(vga_de_av),
 	.VGA_SL(VGA_SL),
 
 	.fx(status[5:3]),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus)
 );
+
+// Scale: integer scaling on the HDMI scaler (framework module; it measures the picture's rows and width from the
+// finished stream, scandoubler and CRT Adjust included, and works out the size from HDMI_WIDTH / HEIGHT). Crop is unused.
+// With Normal (and always while the picture is turned through the frame buffer) it adds nothing but a few clocks of
+// delay to VGA_DE, and passes the aspect ratio through.
+video_freak video_freak
+(
+	.CLK_VIDEO(CLK_VIDEO),
+	.CE_PIXEL(CE_PIXEL),
+	.VGA_VS(VGA_VS),
+	.HDMI_WIDTH(HDMI_WIDTH),
+	.HDMI_HEIGHT(HDMI_HEIGHT),
+	.VGA_DE(VGA_DE),
+	.VIDEO_ARX(VIDEO_ARX),
+	.VIDEO_ARY(VIDEO_ARY),
+
+	.VGA_DE_IN(vga_de_av),
+	.ARX(arx),
+	.ARY(ary),
+	.CROP_SIZE(12'd0),
+	.CROP_OFF(5'd0),
+	.SCALE(scale_sel)
+);
+
+///////////////////////   DDR3   ///////////////////////
+
+// The DDR3 port is on the raster clock, where the framework's screen_rotate writes the rotated picture (it raises
+// DDRAM_WE for a clock per pixel and never looks at DDRAM_BUSY, so it cannot be held off). A fast load takes the port over
+// for a burst at a time (mcatadv_fastload: `fl_own`); for that whole load screen_rotate's pixel enable is held off (the
+// machine is in reset and there is no picture), so it writes nothing and the port is free. Without a fast load fl_own
+// stays 0 and the port is screen_rotate's alone, as it always was.
+reg  [1:0] fast_v;                                  // fast_dl in the raster clock's domain
+always @(posedge CLK_VIDEO) fast_v <= {fast_v[0], fast_dl};
+
+wire        rot_we, rot_rd_unused, rot_clk_unused;
+wire [28:0] rot_addr;
+wire [63:0] rot_din;
+wire  [7:0] rot_be, rot_burst_unused;
+
+// the scaler's picture, rotated a quarter turn into the DDR3 framebuffer when asked (sys/arcade_video.v)
+screen_rotate screen_rotate
+(
+	.CLK_VIDEO(CLK_VIDEO),
+	.CE_PIXEL(CE_PIXEL & ~fast_v[1]),
+	.VGA_R(VGA_R), .VGA_G(VGA_G), .VGA_B(VGA_B),
+	.VGA_HS(VGA_HS), .VGA_VS(VGA_VS), .VGA_DE(VGA_DE),
+
+	.rotate_ccw(rotate_ccw),
+	.no_rotate(no_rotate),
+	.flip(flip),
+	.video_rotated(video_rotated),
+
+	.FB_EN(FB_EN),
+	.FB_FORMAT(FB_FORMAT),
+	.FB_WIDTH(FB_WIDTH),
+	.FB_HEIGHT(FB_HEIGHT),
+	.FB_BASE(FB_BASE),
+	.FB_STRIDE(FB_STRIDE),
+	.FB_VBL(FB_VBL),
+	.FB_LL(FB_LL),
+
+	.DDRAM_CLK(rot_clk_unused),
+	.DDRAM_BUSY(DDRAM_BUSY),
+	.DDRAM_BURSTCNT(rot_burst_unused),
+	.DDRAM_ADDR(rot_addr),
+	.DDRAM_DIN(rot_din),
+	.DDRAM_BE(rot_be),
+	.DDRAM_WE(rot_we),
+	.DDRAM_RD(rot_rd_unused)
+);
+
+wire        fl_own, fl_rd;
+wire [28:0] fl_addr;
+wire  [7:0] fl_burst;
+mcatadv_fastload u_fl
+(
+	.clk(clk_sys), .go(fl_go), .len(fast_len), .abort(dl_start | mem_init),
+	.we(fl_we), .addr(fl_a), .data(fl_d), .full(ioctl_wait), .loader_idle(~dl_busy), .done(fl_done),
+	.clk_ddr(CLK_VIDEO), .own(fl_own), .ddr_rd(fl_rd), .ddr_addr(fl_addr), .ddr_burst(fl_burst),
+	.ddr_busy(DDRAM_BUSY), .ddr_dout(DDRAM_DOUT), .ddr_dready(DDRAM_DOUT_READY)
+);
+
+assign DDRAM_CLK      = CLK_VIDEO;
+assign DDRAM_BURSTCNT = fl_own ? fl_burst : 8'd1;
+assign DDRAM_ADDR     = fl_own ? fl_addr : rot_addr;
+assign DDRAM_RD       = fl_own & fl_rd;
+assign DDRAM_WE       = ~fl_own & rot_we;
+assign DDRAM_DIN      = rot_din;
+assign DDRAM_BE       = rot_be;
 
 ///////////////////////   LED   ///////////////////////
 

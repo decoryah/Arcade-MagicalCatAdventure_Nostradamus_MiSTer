@@ -36,30 +36,49 @@ CLONE_OF = {"mcatadvj": "mcatadv", "catt": "mcatadv", "nostj": "nost", "nostk": 
 L = mamerom.LAYOUT
 SLOT = dict(z80=L["spr"] - L["z80"], spr=0x500000, bg0=L["bg1"] - L["bg0"], bg1=L["pcm"] - L["bg1"], pcm=L["cfg"] - L["pcm"])
 
-# DIP switches: bytes 0 and 1 are the high bytes of MAME's DSW1 and DSW2 (a 1 is MAME's default), eight bits each
-SW_MCAT = """    <switches default="FF,FF" base="16">
-        <dip bits="0" name="Demo Sounds" ids="Off,On"/>
-        <dip bits="1" name="Flip Screen" ids="On,Off"/>
-        <dip bits="2" name="Service Mode" ids="On,Off"/>
-        <dip bits="3" name="Coin Mode" ids="Mode 2,Mode 1"/>
-        <dip bits="4,5" name="Coin A" ids="4C/1C or 2C/3C,3C/1C or 2C/1C,1C/4C or 1C/2C,1C/1C"/>
-        <dip bits="6,7" name="Coin B" ids="4C/1C or 2C/3C,3C/1C or 2C/1C,1C/4C or 1C/2C,1C/1C"/>
-        <dip bits="8,9" name="Difficulty" ids="Hardest,Hard,Easy,Normal"/>
-        <dip bits="10,11" name="Lives" ids="5,2,4,3"/>
-        <dip bits="12,13" name="Energy" ids="8,5,4,3"/>
-        <dip bits="14,15" name="Cabinet" ids="Upright 2P (same),Upright 1P,Cocktail (unused),Upright 2P"/>
-    </switches>"""
-SW_NOST = """    <switches default="FF,FF" base="16">
-        <dip bits="0,1" name="Lives" ids="5,4,2,3"/>
-        <dip bits="2,3" name="Difficulty" ids="Hardest,Hard,Easy,Normal"/>
-        <dip bits="4" name="Flip Screen" ids="On,Off"/>
-        <dip bits="5" name="Demo Sounds" ids="Off,On"/>
-        <dip bits="6,7" name="Bonus Life" ids="None,1000k 2000k,500k 1000k,800k 1500k"/>
-        <dip bits="8,9,10" name="Coin A" ids="Free Play,3C/2C,3C/1C,2C/3C,2C/1C,1C/3C,1C/2C,1C/1C"/>
-        <dip bits="11,12,13" name="Coin B" ids="4C/1C,3C/2C,3C/1C,2C/3C,2C/1C,1C/3C,1C/2C,1C/1C"/>
-        <dip bits="14" name="Unused (SW2:7)" ids="On,Off"/>
-        <dip bits="15" name="Service Mode" ids="On,Off"/>
-    </switches>"""
+# DIP switches. Bytes 0 and 1 of the MRA's <switches> are the high bytes of MAME's DSW1 and DSW2 (a 1 is MAME's default), so
+# switch bit 0..7 is DSW1's bit 8..15 and 8..15 is DSW2's. Each field is (name, first bit, number of bits, the settings by
+# value: the first is the field's value 0, the last all ones). MiSTer reads a <dip>'s bits="first,last" as a RANGE of bits
+# (a single number for one bit), not as a list: a three-bit field written "8,9,10" is read as bits 8..9 and the OSD offers
+# only the first four of its eight settings. tools/check_dips.py checks all this against MAME's input ports.
+DIPS_MCAT = [
+    ("Demo Sounds",  0, 1, "Off,On"),
+    ("Flip Screen",  1, 1, "On,Off"),
+    ("Service Mode", 2, 1, "On,Off"),
+    ("Coin Mode",    3, 1, "Mode 2,Mode 1"),
+    # what the two coin switches mean depends on Coin Mode (MAME's PORT_CONDITION): the first is Mode 2's, the second Mode 1's
+    ("Coin A",       4, 2, "4C/1C or 2C/3C|3C/1C or 2C/1C|1C/4C or 1C/2C|1C/1C"),
+    ("Coin B",       6, 2, "4C/1C or 2C/3C|3C/1C or 2C/1C|1C/4C or 1C/2C|1C/1C"),
+    ("Difficulty",   8, 2, "Hardest|Hard|Easy|Normal"),
+    ("Lives",       10, 2, "5|2|4|3"),
+    ("Energy",      12, 2, "8|5|4|3"),
+    ("Cabinet",     14, 2, "Upright 2P (same)|Upright 1P|Cocktail (unused)|Upright 2P"),
+]
+DIPS_NOST = [
+    ("Lives",        0, 2, "5|4|2|3"),
+    ("Difficulty",   2, 2, "Hardest|Hard|Easy|Normal"),
+    ("Flip Screen",  4, 1, "On,Off"),
+    ("Demo Sounds",  5, 1, "Off,On"),
+    ("Bonus Life",   6, 2, "None|1000k 2000k|500k 1000k|800k 1500k"),
+    ("Coin A",       8, 3, "Free Play|3C/2C|3C/1C|2C/3C|2C/1C|1C/3C|1C/2C|1C/1C"),
+    ("Coin B",      11, 3, "4C/1C|3C/2C|3C/1C|2C/3C|2C/1C|1C/3C|1C/2C|1C/1C"),
+    ("Unused (SW2:7)", 14, 1, "On,Off"),
+    ("Service Mode", 15, 1, "On,Off"),
+]
+
+def switches_xml(dips):
+    lines = ['    <switches default="FF,FF" base="16">']
+    for name, first, n, ids in dips:
+        ids = ids.replace("|", ",").split(",") if "|" in ids or "," in ids else [ids]
+        assert len(ids) == 1 << n, (name, len(ids), n)               # every field has 2^bits settings
+        assert all(ids) and first + n <= 16, name
+        rng = str(first) if n == 1 else "%d,%d" % (first, first + n - 1)
+        lines.append('        <dip bits="%s" name="%s" ids="%s"/>' % (rng, name, ",".join(ids)))
+    lines.append('    </switches>')
+    return "\n".join(lines)
+
+SW_MCAT = switches_xml(DIPS_MCAT)
+SW_NOST = switches_xml(DIPS_NOST)
 
 
 def part(name, crc):
@@ -142,10 +161,12 @@ def mra(setname):
     body = "\n".join(body)
 
     if nost:
-        # the game plays with one button; buttons 2 and 3, "test 3" and Service are the test mode's (MAME's driver notes)
-        rot, buttons = "vertical (ccw)", '<buttons names="Shot,Button 2 (test),Button 3 (test),Start,Coin,Service,Test 3" default="A,B,X,Start,Select,R,L"/>'
+        # the game plays with one button; the board's other inputs (buttons 2 and 3 and "test 3" in the test mode, Service) are not
+        # offered: the core takes the test mode from the Service Mode switch / F2 and the keyboard's 9. The order is the joystick bits
+        # from bit 4 on, which MCatAdv.sv decodes per game
+        rot, buttons = "vertical (ccw)", '<buttons names="Shot,Start,Coin" default="A,Start,Select"/>'
     else:
-        rot, buttons = "horizontal", '<buttons names="Fire,Jump,Button 3 (test),Start,Coin,Service" default="A,B,X,Start,Select,R"/>'
+        rot, buttons = "horizontal", '<buttons names="Fire,Jump,Start,Coin" default="A,B,Start,Select"/>'
     return f"""<misterromdescription>
     <rotation>{rot}</rotation>
     <name>{title}</name>
@@ -176,10 +197,14 @@ def mra(setname):
 
       DIP switches (ioctl index 254): byte 0 is the high byte of MAME's DSW1 port, byte 1 the high byte of DSW2
       (bit 0 is SW1:1 / SW2:1 ... a 1 is MAME's default setting).
+
+      Fast loading: address="0x32000000" makes a recent Main_MiSTer copy the assembled image into the DDR3 in one go; the
+      core then reads it back from there (about a second) instead of waiting for it to be streamed through the HPS port.
+      An older Main_MiSTer ignores the attribute and streams the image as before.
     -->
 {SW_NOST if nost else SW_MCAT}
 
-    <rom index="0" zip="{zipname}" md5="None">
+    <rom index="0" zip="{zipname}" md5="None" address="0x32000000">
 
 {body}    </rom>
 

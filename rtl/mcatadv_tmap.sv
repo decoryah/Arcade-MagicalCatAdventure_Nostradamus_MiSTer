@@ -14,11 +14,11 @@
 // 8 consecutive bytes: tile * 128 + (y half) * 64 + (line in the half) * 8, the left 8x8's
 // four bytes and then the right's. That is one 4-word burst per tile and line.
 //
-// Screen flip (reg0 / reg1 bit 15 = 0 flips X / Y), as MAME's draw_tilemap_part and tilemap_t do it: the scroll is lowered by
-// 19 / 141 (hex) and the whole 512 x 512 map is mirrored, so that screen pixel (x, y) shows map pixel
-//     X flip:  (scroll_x - x + 319) mod 512        Y flip:  (scroll_y + 223 - y) mod 512
-// with the row select / row scroll lookups done as without the flip. The sprites are not flipped (the part of MAME's driver that
-// would is disabled).
+// Screen flip (Flip Screen DIP switch). The game leaves the tile RAM and the line RAM alone and writes bit 15 of reg0 / reg1 = 0
+// and the scrolls as C - scroll (X: 0x33f, Y: 0x2df, modulo 512; real captures of the two games, tools/flip_check.py). Here the scroll
+// fields are turned back into the unflipped ones (0x13f - field, 0x0df - field) and the line is drawn as usual; the finished picture
+// is mirrored by the core (the line to draw, mcatadv_core.sv) and the raster (the read of the line buffers, mcatadv_video.sv).
+// MAME's own flip (its tilemaps' flip with other constants, no sprites) is not what the games show.
 `default_nettype none
 module mcatadv_tmap #(
     parameter [24:1] GFX_BASE = 24'h300000    // word address of this layer's tile ROM in SDRAM
@@ -60,10 +60,8 @@ module mcatadv_tmap #(
     logic        bnk;
     logic [8:0]  map_y;                       // line of the 512-line map
     logic [8:0]  scroll_x;                    // effective, after row scroll
-    logic        flipx, flipy;
-    wire  [8:0]  tile_y = flipy ? (map_y - {y, 1'b0} - 9'd98) : map_y;     // the map row drawn on this line (Y flip: scroll_y - 321 + 223 - y)
-    wire  [8:0]  fx_sp  = scroll_x + 9'd294;                                // X flip: (scroll_x - 25) + 319
-    wire  [3:0]  fine   = flipx ? (4'd15 - fx_sp[3:0]) : scroll_x[3:0];     // the first slice starts this many pixels left of the screen
+    wire  [8:0]  tile_y = map_y;                                            // the map row drawn on this line
+    wire  [3:0]  fine   = scroll_x[3:0];                                    // the first slice starts this many pixels left of the screen
 
     typedef enum logic [4:0] {
         F_IDLE, F_LR0, F_LR1, F_LR2, F_LR3, F_LR4, F_LR5, F_GO,
@@ -111,14 +109,13 @@ module mcatadv_tmap #(
                 overrun <= 1'b0;
                 busy <= 1'b1;
                 y <= line; bnk <= bank;
-                scrollx_base <= vregs[8:0] - 9'h194;
-                scrolly_base <= vregs[24:16] - 9'h1df;
+                // Flip Screen (bit 15 clear): the game's scroll is C - scroll, see the header
+                scrollx_base <= (vregs[15] ? vregs[8:0]   : 9'h13f - vregs[8:0])   - 9'h194;
+                scrolly_base <= (vregs[31] ? vregs[24:16] : 9'h0df - vregs[24:16]) - 9'h1df;
                 rowscroll_en <= vregs[14];
                 rowselect_en <= vregs[30];
                 pal_bank     <= vregs[35:32];
                 enabled      <= ~vregs[36];
-                flipx        <= ~vregs[15];
-                flipy        <= ~vregs[31];
                 en_bank[bank] <= ~vregs[36];
                 f <= F_LR0;
             end
@@ -156,7 +153,7 @@ module mcatadv_tmap #(
             end
             // one slice: the tile RAM words, then the ROM burst
             F_GO: begin
-                tcol <= flipx ? (fx_sp[8:4] - slice) : (scroll_x[8:4] + slice);
+                tcol <= scroll_x[8:4] + slice;
                 f <= F_V0;
             end
             F_V0: begin
@@ -208,7 +205,7 @@ module mcatadv_tmap #(
     logic [3:0]  nib;
 
     // pixel p is the high nibble of byte p>>1 for even p; byte b of the row is wr_px[8b+7:8b]
-    wire [3:0] wpi = flipx ? ~wp : wp;                  // X flip: the tile row read right to left
+    wire [3:0] wpi = wp;
     always_comb begin
         case (wpi[3:1])
             3'd0: nib = wpi[0] ? wr_px[3:0]   : wr_px[7:4];

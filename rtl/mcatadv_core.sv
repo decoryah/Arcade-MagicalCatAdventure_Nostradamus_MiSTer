@@ -1,5 +1,5 @@
 // The whole machine, without its memory (SDRAM) and the platform: the 68000 board, the sound board,
-// the two tilemaps and the sprites, and the raster with its mixer. Clocks: clk 96 MHz, clk_vid 28 MHz.
+// the two tilemaps and the sprites, and the raster with its mixer. Clocks: clk 96 MHz, clk_vid 56 MHz.
 `default_nettype none
 module mcatadv_core (
     input  logic        clk,
@@ -35,6 +35,7 @@ module mcatadv_core (
     // picture and sound
     output logic        ce_pix,
     output logic        hblank, vblank, hsync, vsync,
+    output logic        vblank_nl,
     output logic [23:0] rgb,
     output logic signed [15:0] snd_l, snd_r,
     output logic        snd_valid,
@@ -64,6 +65,7 @@ module mcatadv_core (
 
     // ---------------------------------------------------------------- raster
     logic ls_pulse, frame_pulse, vbl_pulse;
+    logic fl_x = 1'b0, fl_y = 1'b0;                       // Flip Screen: the game's flags (tilemap 0's registers), taken at the start of a frame
     logic [11:0] pal_raddr;
     logic [15:0] pal_rdata;
     logic        t0_lb_we, t1_lb_we, sp_lb_we;
@@ -73,12 +75,12 @@ module mcatadv_core (
     logic [1:0]  t0_en, t1_en;
     mcatadv_video u_video (
         .clk_vid(clk_vid), .clk_sys(clk),
-        .ce_pix(ce_pix), .hblank(hblank), .vblank(vblank), .hsync(hsync), .vsync(vsync), .rgb(rgb),
+        .ce_pix(ce_pix), .hblank(hblank), .vblank(vblank), .hsync(hsync), .vsync(vsync), .vblank_nl(vblank_nl), .rgb(rgb),
         .ls_pulse(ls_pulse), .frame_pulse(frame_pulse), .vbl_pulse(vbl_pulse),
         .t0_we(t0_lb_we), .t0_waddr(t0_lb_addr), .t0_wdata(t0_lb_data),
         .t1_we(t1_lb_we), .t1_waddr(t1_lb_addr), .t1_wdata(t1_lb_data),
         .sp_we(sp_lb_we), .sp_waddr(sp_lb_addr), .sp_wdata(sp_lb_data),
-        .t0_en(t0_en), .t1_en(t1_en),
+        .t0_en(t0_en), .t1_en(t1_en), .flip_x(fl_x),
         .pal_raddr(pal_raddr), .pal_rdata(pal_rdata)
     );
 
@@ -94,7 +96,8 @@ module mcatadv_core (
         r_start <= 1'b0;
         if (ls_pulse) begin
             lk <= lk_new;
-            if (tgt <= 9'd223) begin r_start <= 1'b1; r_line <= tgt[7:0]; r_bank <= tgt[0]; end
+            // (Flip Screen, vertical: display line tgt shows the unflipped picture's line 223 - tgt; the buffer is the display line's)
+            if (tgt <= 9'd223) begin r_start <= 1'b1; r_line <= fl_y ? 8'd223 - tgt[7:0] : tgt[7:0]; r_bank <= tgt[0]; end
         end
     end
 
@@ -108,6 +111,10 @@ module mcatadv_core (
     logic [15:0] t0_rdata, t1_rdata;
     logic [47:0] vreg0, vreg1;
     logic [15:0] vid_x, vid_y, vid_bank;
+    // Flip Screen: the game clears bit 15 of tilemap 0's registers 0 / 1 (the scrolls are then C - scroll, see mcatadv_tmap.sv); the
+    // picture is drawn as without the switch and mirrored: lines in the order 223 .. 0 (r_line above), each read backwards
+    // (mcatadv_video.sv), sprites included
+    always_ff @(posedge clk) if (frame_pulse) begin fl_x <= ~vreg0[15]; fl_y <= ~vreg0[31]; end
     logic [13:0] spr_raddr;
     logic [15:0] spr_rdata;
 

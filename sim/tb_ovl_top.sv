@@ -8,10 +8,10 @@ module tb_ovl_top (
     logic hsync, vsync, ls, fr, vbl;
     logic [23:0] rgb_v;
     mcatadv_video u_v (
-        .clk_vid(clk_vid), .clk_sys(clk), .ce_pix(ce_pix), .hblank(hblank), .vblank(vblank), .hsync(hsync), .vsync(vsync), .rgb(rgb_v),
+        .clk_vid(clk_vid), .clk_sys(clk), .ce_pix(ce_pix), .hblank(hblank), .vblank(vblank), .hsync(hsync), .vsync(vsync), .vblank_nl(), .rgb(rgb_v),
         .ls_pulse(ls), .frame_pulse(fr), .vbl_pulse(vbl),
         .t0_we(1'b0), .t0_waddr(10'd0), .t0_wdata(15'd0), .t1_we(1'b0), .t1_waddr(10'd0), .t1_wdata(15'd0),
-        .sp_we(1'b0), .sp_waddr(10'd0), .sp_wdata(13'd0), .t0_en(2'b00), .t1_en(2'b00),
+        .sp_we(1'b0), .sp_waddr(10'd0), .sp_wdata(13'd0), .t0_en(2'b00), .t1_en(2'b00), .flip_x(1'b0),
         .pal_raddr(), .pal_rdata(16'h7fff));
     // a recognisable status: bit n set when n is a multiple of 3 or n < 8
     logic [95:0] st;

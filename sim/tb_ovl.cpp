@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
     while (frames < 3) {
         tick++;
         if (tick % 7 == 0) t->clk = !t->clk;
-        if (tick % 24 == 0) t->clk_vid = !t->clk_vid;
+        if (tick % 12 == 0) t->clk_vid = !t->clk_vid;
         t->eval();
         if (!t->clk_vid && pvid && t->ce_pix) {
             bool hb = t->hblank, vb = t->vblank;

@@ -1,0 +1,11 @@
+crt_adjust.sv: rmonic79 (Umberto Parisi), with Andrea Bogazzi (asturur), GPL-3.0 or later
+https://github.com/rmonic79/MiSTer-CRT-Adjust @ c682de9f4acc61d8f4c7779efb48149d3baa3a8e, rtl/crt_adjust.sv (the core-side variant)
+
+Copied from the Gaiapolis MiSTer port's tree (modules/crt-adjust), which records that commit and carries the one local fix below.
+
+Local change (one line, `hoff_s`): the conditional mixes `$signed(hoffset)` with an unsigned replication, so by the Verilog rules
+(and in Verilator) the result is unsigned and a negative H-Position is zero-extended (-1 becomes 511), which moves the picture
+window out of the line and blanks the picture. The line now sign-extends `hoffset` explicitly, which is what the module is meant
+to do and gives the same result in every tool. Nothing else differs from upstream.
+
+Glue: rtl/mcatadv_crt.sv (the OSD values, the read-rate generator, the select between the adjusted and the native picture).

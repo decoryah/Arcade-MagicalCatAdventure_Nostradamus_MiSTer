@@ -42,3 +42,10 @@ set_global_assignment -name VERILOG_FILE modules/jt49/jt49_div.v
 set_global_assignment -name VERILOG_FILE modules/jt49/jt49_eg.v
 set_global_assignment -name VERILOG_FILE modules/jt49/jt49_exp.v
 set_global_assignment -name VERILOG_FILE modules/jt49/jt49_noise.v
+
+# CRT Adjust (rmonic79, GPL-3.0 or later; modules/crt-adjust/UPSTREAM.txt) and its glue
+set_global_assignment -name SYSTEMVERILOG_FILE modules/crt-adjust/crt_adjust.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mcatadv_crt.sv
+
+# fast load: the image replayed from the DDR3
+set_global_assignment -name SYSTEMVERILOG_FILE target/mister/mcatadv_fastload.sv
